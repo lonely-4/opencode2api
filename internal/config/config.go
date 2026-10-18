@@ -25,14 +25,17 @@ type Config struct {
 	Anonymous         bool                         `json:"anonymous"`
 	Proxies           []string                     `json:"proxies"`
 	ProxyFile         string                       `json:"proxyfile"`
-	Upstream          UpstreamConfig               `json:"upstream"`
-	Retry             RetryConfig                  `json:"retry"`
-	Models            ModelsConfig                 `json:"models"`
-	Performance       PerformanceConfig            `json:"performance"`
-	Logging           LoggingConfig                `json:"logging"`
-	WebUI             WebUIConfig                  `json:"webui"`
-	Prefer            Tier                         `json:"prefer"`
-	Reasoning         ReasoningConfig              `json:"reasoning"`
+	// SourceIPv6 lists local IPv6 addresses. Each outbound request picks one
+	// at random and binds it as the source address. Empty keeps the kernel default.
+	SourceIPv6  []string          `json:"source_ipv6,omitempty"`
+	Upstream    UpstreamConfig    `json:"upstream"`
+	Retry       RetryConfig       `json:"retry"`
+	Models      ModelsConfig      `json:"models"`
+	Performance PerformanceConfig `json:"performance"`
+	Logging     LoggingConfig     `json:"logging"`
+	WebUI       WebUIConfig       `json:"webui"`
+	Prefer      Tier              `json:"prefer"`
+	Reasoning   ReasoningConfig   `json:"reasoning"`
 
 	effectiveProxies []string
 }
@@ -168,6 +171,9 @@ func Normalize(path string, cfg Config) (Config, error) {
 	trimList(&cfg.GoKeys)
 	cfg.ProxyFile = strings.TrimSpace(cfg.ProxyFile)
 	if err := resolveProxyFiles(path, &cfg); err != nil {
+		return Config{}, err
+	}
+	if err := normalizeSourceIPv6(&cfg); err != nil {
 		return Config{}, err
 	}
 	if cfg.Prefer != TierZen && cfg.Prefer != TierGo {
@@ -352,6 +358,7 @@ func Clone(cfg Config) Config {
 	cfg.ZenKeys = append([]string(nil), cfg.ZenKeys...)
 	cfg.GoKeys = append([]string(nil), cfg.GoKeys...)
 	cfg.Proxies = append([]string(nil), cfg.Proxies...)
+	cfg.SourceIPv6 = append([]string(nil), cfg.SourceIPv6...)
 	cfg.effectiveProxies = append([]string(nil), cfg.effectiveProxies...)
 	if cfg.Models.Protocols != nil {
 		protocols := make(map[string]string, len(cfg.Models.Protocols))

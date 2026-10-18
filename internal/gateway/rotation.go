@@ -208,7 +208,7 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
 	}
 	// A reused connection must not cause net/http to implicitly replay POSTs.
 	req.GetBody = nil
-	client := *proxy.client
+	client := *proxy.Client()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	setRequestCredential(parent, config.TierGo, config.KeyDisplayID(node.key), "key", false, proxy)
 	started := time.Now()

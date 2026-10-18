@@ -200,7 +200,7 @@ func (g *Gateway) refreshProtocolCapabilities(ctx context.Context) (modelcatalog
 		if proxy == nil || !proxy.healthy.Load() {
 			continue
 		}
-		capabilities, err := modelcatalog.FetchCapabilities(ctx, proxy.client, modelcatalog.CapabilitiesURL)
+		capabilities, err := modelcatalog.FetchCapabilities(ctx, proxy.Client(), modelcatalog.CapabilitiesURL)
 		if err == nil {
 			return capabilities, nil
 		}
@@ -240,7 +240,7 @@ func (g *Gateway) refreshAnonymousTier(ctx context.Context, base string) []strin
 		// Prefer the legacy /zen/v1 models listing before falling back to the
 		// configured anonymous upstream.
 		for _, upstream := range g.anonymousUpstreams() {
-			models, status, err = modelcatalog.FetchModels(refreshCtx, node.proxy.client, upstream, anonymousZenKey)
+			models, status, err = modelcatalog.FetchModels(refreshCtx, node.proxy.Client(), upstream, anonymousZenKey)
 			if err == nil {
 				break
 			}
@@ -271,7 +271,7 @@ func (g *Gateway) refreshTier(ctx context.Context, base string, nodes *nodePool)
 			cancel()
 			return nil
 		}
-		models, status, err := modelcatalog.FetchModels(refreshCtx, proxy.client, base, node.key)
+		models, status, err := modelcatalog.FetchModels(refreshCtx, proxy.Client(), base, node.key)
 		g.syncProxyResult(refreshCtx, proxy, status, err)
 		cancel()
 		if err == nil {

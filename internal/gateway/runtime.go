@@ -69,7 +69,7 @@ func NewRuntimeManager(root context.Context, configPath string, cfg config.Confi
 		clients := make([]*http.Client, 0, len(runtime.gateway.transports.items))
 		for _, proxy := range runtime.gateway.transports.items {
 			if proxy != nil && proxy.healthy.Load() {
-				clients = append(clients, proxy.client)
+				clients = append(clients, proxy.Clients()...)
 			}
 		}
 		return clients

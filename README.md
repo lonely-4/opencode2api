@@ -264,6 +264,7 @@ See [config.example.json](config.example.json) for a complete starting configura
 | `upstream.go`               | `https://opencode.ai/zen/go`.                                               |
 | `proxies`                   | Falls back to `["direct"]` when both proxy sources are empty.               |
 | `proxyfile`                 | Optional; relative paths resolve beside the configuration file.             |
+| `source_ipv6`               | Optional local IPv6 addresses. Each outbound request binds one at random.   |
 | `models.refresh_seconds`    | `300`; minimum 1.                                                           |
 | `models.protocols`          | `{}`; per-model native protocol overrides.                                  |
 | `models.free_only`          | `false`; expose and route only free models, even with Zen or Go keys.       |

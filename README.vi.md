@@ -268,6 +268,7 @@ Xem [config.example.json](config.example.json) để có một cấu hình khở
 | `upstream.go`              | `https://opencode.ai/zen/go`.                                    |
 | `proxies`                  | Rơi về `["direct"]` khi cả hai nguồn proxy đều rỗng.              |
 | `proxyfile`                | Không bắt buộc; đường dẫn tương đối được phân giải cạnh file cấu hình. |
+| `source_ipv6`              | Không bắt buộc. Mỗi request đi ra gắn ngẫu nhiên một địa chỉ IPv6 cục bộ. |
 | `models.refresh_seconds`   | `300`; tối thiểu 1.                                              |
 | `models.protocols`         | `{}`; ghi đè giao thức gốc theo từng mô hình.                   |
 | `models.free_only`         | `false`; chỉ công khai và định tuyến mô hình miễn phí, kể cả khi có key Zen hoặc Go. |

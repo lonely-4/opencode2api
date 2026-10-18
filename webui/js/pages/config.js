@@ -54,6 +54,7 @@ function fillConfig(value) {
   $("#c-web-enabled").checked = value.webui.enabled;
   $("#c-anonymous").checked = !!value.anonymous;
   $("#c-proxyfile").value = value.proxyfile;
+  $("#c-source-ipv6").value = (value.source_ipv6 || []).join("\n");
   $("#c-up-zen").value = value.upstream.zen;
   $("#c-up-go").value = value.upstream.go;
   $("#c-attempts").value = value.retry.max_attempts;
@@ -92,6 +93,10 @@ async function save(event) {
       anonymous: $("#c-anonymous").checked,
       proxies: secretInputs("proxies"),
       proxyfile: $("#c-proxyfile").value,
+      source_ipv6: $("#c-source-ipv6")
+        .value.split(/\r?\n/)
+        .map((value) => value.trim())
+        .filter(Boolean),
       prefer: $("#c-prefer").value,
       upstream: { zen: $("#c-up-zen").value, go: $("#c-up-go").value },
       retry: { max_attempts: numberValue("#c-attempts"), timeout_seconds: numberValue("#c-timeout") },

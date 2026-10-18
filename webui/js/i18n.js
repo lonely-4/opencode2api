@@ -259,6 +259,7 @@ const DICTIONARY = {
       "config.proxy.caption":
         "Supports direct, HTTP(S), and SOCKS URLs. Suffix an entry with #pool to mark it as a rotating proxy pool: the gateway then opens a fresh connection per attempt, skips its cooldown and health eviction, and retries it up to retry.max_attempts times.",
       "config.proxy.add": "Add proxies (one per line)",
+      "config.source.label": "Local outbound IPv6 (one per line; each request picks one at random)",
       "config.upstream.title": "Upstream and protocol routing",
       "config.upstream.caption":
         "anonymous will use every available proxy; an explicit protocol mapping wins over inferring the protocol from the model name.",
@@ -805,6 +806,7 @@ const DICTIONARY = {
       "config.proxy.caption":
         "Hỗ trợ direct, HTTP(S) và URL SOCKS. Thêm hậu tố #pool để đánh dấu mục đó là proxy pool luân chuyển: gateway sẽ mở kết nối mới cho mỗi lần thử, bỏ qua cooldown và loại bỏ theo sức khoẻ, và thử lại tối đa retry.max_attempts lần.",
       "config.proxy.add": "Thêm Proxy (mỗi dòng một cái)",
+      "config.source.label": "IPv6 nguồn cục bộ (mỗi dòng một địa chỉ; mỗi request chọn ngẫu nhiên một địa chỉ)",
       "config.upstream.title": "Upstream và định tuyến giao thức",
       "config.upstream.caption":
         "anonymous sẽ dùng hết các Proxy khả dụng; ánh xạ protocol tường minh được ưu tiên hơn việc suy luận từ tên mô hình.",

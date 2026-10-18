@@ -85,14 +85,14 @@ func (g *Gateway) probeFreeModel(ctx context.Context, model string) probeResult 
 		if node := cursor.Next(); node != nil {
 			// Prefer the legacy /zen/v1 lane before falling back to /inference.
 			for _, baseURL := range g.anonymousUpstreams() {
-				lanes = append(lanes, lane{anonymousZenKey, "anonymous", baseURL, node.proxy.client})
+				lanes = append(lanes, lane{anonymousZenKey, "anonymous", baseURL, node.proxy.Client()})
 			}
 		}
 	}
 	cursor := g.zenNodes.CursorFor(ids.Session)
 	if node := cursor.Next(); node != nil {
 		if proxy := g.zenNodes.Proxy(node); proxy != nil {
-			lanes = append(lanes, lane{node.key, "zen", g.cfg.Upstream.Zen, proxy.client})
+			lanes = append(lanes, lane{node.key, "zen", g.cfg.Upstream.Zen, proxy.Client()})
 		}
 	}
 	result := probeResult{reason: "no_probe_channel"}

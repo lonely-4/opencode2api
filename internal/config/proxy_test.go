@@ -70,6 +70,40 @@ func TestResolveProxyFilesKeepsPoolVariantOfSameEndpoint(t *testing.T) {
 
 // A pool entry must validate against the clean URL, and its credentials must
 // stay redactable after the marker is stripped.
+func TestNormalizeSourceIPv6(t *testing.T) {
+	cfg := Config{
+		Listen:      "127.0.0.1:8080",
+		ServerKeys:  []string{"local-key"},
+		Anonymous:   true,
+		Proxies:     []string{"direct"},
+		SourceIPv6:  []string{"2604:6280:19f:7a::c9", "2604:6280:19F:7A::CA", "  2604:6280:19f:7a::c9  ", "2604:6280:19f:7a::cb"},
+		Upstream:    UpstreamConfig{Zen: "https://opencode.ai/zen", Go: "https://opencode.ai/zen/go", Anonymous: "https://opencode.ai/inference"},
+		Retry:       RetryConfig{MaxAttempts: 3, TimeoutSeconds: 300},
+		Models:      ModelsConfig{RefreshSeconds: 300, Protocols: map[string]string{}},
+		Performance: PerformanceConfig{MaxIdleConns: 10, MaxIdleConnsPerHost: 10, IdleConnTimeoutSeconds: 30, ConnectTimeoutSeconds: 5, FailureCooldownSeconds: 15},
+		Logging:     LoggingConfig{Level: "info", RingSize: 100},
+		Prefer:      TierGo,
+	}
+	normalized, err := Normalize("config.json", cfg)
+	if err != nil {
+		t.Fatalf("Normalize rejected source IPv6: %v", err)
+	}
+	want := []string{"2604:6280:19f:7a::c9", "2604:6280:19f:7a::ca", "2604:6280:19f:7a::cb"}
+	if len(normalized.SourceIPv6) != len(want) {
+		t.Fatalf("SourceIPv6 = %#v, want %#v", normalized.SourceIPv6, want)
+	}
+	for i := range want {
+		if normalized.SourceIPv6[i] != want[i] {
+			t.Fatalf("SourceIPv6 = %#v, want %#v", normalized.SourceIPv6, want)
+		}
+	}
+
+	cfg.SourceIPv6 = []string{"192.0.2.1"}
+	if _, err := Normalize("config.json", cfg); err == nil {
+		t.Fatal("Normalize accepted an IPv4 source address")
+	}
+}
+
 func TestNormalizeAcceptsPoolProxy(t *testing.T) {
 	cfg := Config{
 		Listen:      "127.0.0.1:8080",

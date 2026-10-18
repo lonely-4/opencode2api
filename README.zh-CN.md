@@ -264,6 +264,7 @@ Key 初始化时均衡分配到代理。真实流量可以触发代理检查、K
 | `upstream.go`               | `https://opencode.ai/zen/go`。                                                        |
 | `proxies`                   | 两个代理来源都为空时，使用 `["direct"]`。                                             |
 | `proxyfile`                 | 可选；相对路径基于配置文件所在目录解析。                                              |
+| `source_ipv6`               | 可选；本机 IPv6 列表。每次出站请求随机绑定其中一个作为源地址。留空则用系统默认路由。 |
 | `models.refresh_seconds`    | `300`；最小为 1。                                                                     |
 | `models.protocols`          | `{}`；按模型 ID 覆盖原生协议。                                                        |
 | `models.free_only`          | `false`；即使配置了 Zen / Go Key，也只暴露和路由免费模型。                            |

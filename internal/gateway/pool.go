@@ -26,9 +26,31 @@ type proxyTransport struct {
 	index    int
 	name     string
 	pool     bool
-	client   *http.Client
+	clients  []*http.Client
 	healthy  atomic.Bool
 	checking atomic.Bool
+}
+
+// Client returns the HTTP client for one outbound attempt. When several local
+// source addresses are configured, each call picks one uniformly at random so
+// HTTP/2 connection pools stay per address instead of pinning every request
+// to whichever connection was dialed first.
+func (p *proxyTransport) Client() *http.Client {
+	if p == nil || len(p.clients) == 0 {
+		return nil
+	}
+	if len(p.clients) == 1 {
+		return p.clients[0]
+	}
+	return p.clients[rand.IntN(len(p.clients))]
+}
+
+// Clients returns every source-bound client, in configuration order.
+func (p *proxyTransport) Clients() []*http.Client {
+	if p == nil {
+		return nil
+	}
+	return p.clients
 }
 
 type transportPool struct {
@@ -234,51 +256,87 @@ func (p *transportPool) healthCounts() (total, healthy int) {
 	return len(p.items), healthy
 }
 
-func newTransportPool(proxies []string, cfg config.PerformanceConfig, responseHeaderTimeout time.Duration) (*transportPool, error) {
+func newTransportPool(proxies []string, sources []string, cfg config.PerformanceConfig, responseHeaderTimeout time.Duration) (*transportPool, error) {
+	sourceIPs, err := sourceIPs(sources)
+	if err != nil {
+		return nil, err
+	}
 	p := &transportPool{items: make([]*proxyTransport, 0, len(proxies))}
 	for _, raw := range proxies {
 		clean, isPool := config.ParseProxyEntry(raw)
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.MaxIdleConns = cfg.MaxIdleConns
-		transport.MaxIdleConnsPerHost = cfg.MaxIdleConnsPerHost
-		transport.MaxConnsPerHost = cfg.MaxConnsPerHost
-		transport.IdleConnTimeout = time.Duration(cfg.IdleConnTimeoutSeconds) * time.Second
-		transport.ResponseHeaderTimeout = responseHeaderTimeout
-		transport.ForceAttemptHTTP2 = !isPool
-		transport.DisableKeepAlives = isPool
-		if isPool {
-			// Cloning DefaultTransport after its first dial inherits the
-			// already-configured HTTP/2 ALPN and TLSNextProto map, which ignores
-			// DisableKeepAlives and req.Close and multiplexes every request over
-			// one CONNECT tunnel. An explicit empty TLSNextProto map and HTTP/1.1
-			// ALPN force a brand-new TCP + CONNECT tunnel per attempt.
-			transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-			if transport.TLSClientConfig == nil {
-				transport.TLSClientConfig = &tls.Config{NextProtos: []string{"http/1.1"}}
-			} else {
-				tlsCfg := transport.TLSClientConfig.Clone()
-				tlsCfg.NextProtos = []string{"http/1.1"}
-				transport.TLSClientConfig = tlsCfg
-			}
-		}
-		transport.DialContext = (&net.Dialer{
-			Timeout:   time.Duration(cfg.ConnectTimeoutSeconds) * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext
-		if clean == "direct" {
-			transport.Proxy = nil
-		} else {
-			u, err := url.Parse(clean)
+		var proxyURL *url.URL
+		if clean != "direct" {
+			proxyURL, err = url.Parse(clean)
 			if err != nil {
 				return nil, fmt.Errorf("parse proxy %s: %w", config.RedactURL(raw), err)
 			}
-			transport.Proxy = http.ProxyURL(u)
 		}
-		proxy := &proxyTransport{index: len(p.items), name: raw, pool: isPool, client: &http.Client{Transport: transport}}
+		clients := make([]*http.Client, 0, max(len(sourceIPs), 1))
+		if len(sourceIPs) == 0 {
+			clients = append(clients, &http.Client{Transport: newUpstreamTransport(cfg, responseHeaderTimeout, isPool, nil, proxyURL)})
+		} else {
+			for _, ip := range sourceIPs {
+				clients = append(clients, &http.Client{Transport: newUpstreamTransport(cfg, responseHeaderTimeout, isPool, ip, proxyURL)})
+			}
+		}
+		proxy := &proxyTransport{index: len(p.items), name: raw, pool: isPool, clients: clients}
 		proxy.healthy.Store(true)
 		p.items = append(p.items, proxy)
 	}
 	return p, nil
+}
+
+func sourceIPs(sources []string) ([]net.IP, error) {
+	if len(sources) == 0 {
+		return nil, nil
+	}
+	out := make([]net.IP, 0, len(sources))
+	for _, raw := range sources {
+		ip := net.ParseIP(raw)
+		if ip == nil || ip.To4() != nil {
+			return nil, fmt.Errorf("invalid source ipv6 %q", raw)
+		}
+		out = append(out, ip)
+	}
+	return out, nil
+}
+
+func newUpstreamTransport(cfg config.PerformanceConfig, responseHeaderTimeout time.Duration, isPool bool, source net.IP, proxyURL *url.URL) *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = cfg.MaxIdleConns
+	transport.MaxIdleConnsPerHost = cfg.MaxIdleConnsPerHost
+	transport.MaxConnsPerHost = cfg.MaxConnsPerHost
+	transport.IdleConnTimeout = time.Duration(cfg.IdleConnTimeoutSeconds) * time.Second
+	transport.ResponseHeaderTimeout = responseHeaderTimeout
+	transport.ForceAttemptHTTP2 = !isPool
+	transport.DisableKeepAlives = isPool
+	if isPool {
+		// Cloning DefaultTransport after its first dial inherits the
+		// already-configured HTTP/2 ALPN and TLSNextProto map, which ignores
+		// DisableKeepAlives and req.Close and multiplexes every request over
+		// one CONNECT tunnel. An explicit empty TLSNextProto map and HTTP/1.1
+		// ALPN force a brand-new TCP + CONNECT tunnel per attempt.
+		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
+		if transport.TLSClientConfig == nil {
+			transport.TLSClientConfig = &tls.Config{NextProtos: []string{"http/1.1"}}
+		} else {
+			tlsCfg := transport.TLSClientConfig.Clone()
+			tlsCfg.NextProtos = []string{"http/1.1"}
+			transport.TLSClientConfig = tlsCfg
+		}
+	}
+	timeout := time.Duration(cfg.ConnectTimeoutSeconds) * time.Second
+	if source == nil {
+		transport.DialContext = (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext
+	} else {
+		transport.DialContext = sourceDialContext(source, timeout)
+	}
+	if proxyURL == nil {
+		transport.Proxy = nil
+	} else {
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
+	return transport
 }
 
 type proxyHealthResult struct {
@@ -325,7 +383,7 @@ func (p *transportPool) checkClaimedProxy(ctx context.Context, proxy *proxyTrans
 	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, target, nil)
 	if err == nil {
 		req.Header.Set("User-Agent", httpx.UserAgent())
-		resp, requestErr := proxy.client.Do(req)
+		resp, requestErr := proxy.Client().Do(req)
 		err = requestErr
 		if resp != nil {
 			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
