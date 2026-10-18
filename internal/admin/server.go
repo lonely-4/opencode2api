@@ -108,24 +108,25 @@ type SecretView struct {
 }
 
 type ConfigView struct {
-	Listen      string                   `json:"listen"`
-	ServerKeys  []SecretView             `json:"server_keys"`
-	ZenKeys     []SecretView             `json:"zen_keys"`
-	GoKeys      []SecretView             `json:"go_keys"`
-	Anonymous   bool                     `json:"anonymous"`
-	Proxies     []SecretView             `json:"proxies"`
-	ProxyFile   string                   `json:"proxyfile"`
-	SourceIPv6  []string                 `json:"source_ipv6"`
-	Upstream    config.UpstreamConfig    `json:"upstream"`
-	Retry       config.RetryConfig       `json:"retry"`
-	Models      config.ModelsConfig      `json:"models"`
-	Performance config.PerformanceConfig `json:"performance"`
-	Logging     config.LoggingConfig     `json:"logging"`
-	Prefer      config.Tier              `json:"prefer"`
-	Reasoning   config.ReasoningConfig   `json:"reasoning"`
-	WebUI       WebUIView                `json:"webui"`
-	Effective   EffectiveView            `json:"effective"`
-	Restart     []string                 `json:"restart_required_fields,omitempty"`
+	Listen           string                   `json:"listen"`
+	ServerKeys       []SecretView             `json:"server_keys"`
+	ZenKeys          []SecretView             `json:"zen_keys"`
+	GoKeys           []SecretView             `json:"go_keys"`
+	Anonymous        bool                     `json:"anonymous"`
+	Proxies          []SecretView             `json:"proxies"`
+	ProxyFile        string                   `json:"proxyfile"`
+	SourceIPv6       []string                 `json:"source_ipv6"`
+	SourceIPv6Prefix string                   `json:"source_ipv6_prefix"`
+	Upstream         config.UpstreamConfig    `json:"upstream"`
+	Retry            config.RetryConfig       `json:"retry"`
+	Models           config.ModelsConfig      `json:"models"`
+	Performance      config.PerformanceConfig `json:"performance"`
+	Logging          config.LoggingConfig     `json:"logging"`
+	Prefer           config.Tier              `json:"prefer"`
+	Reasoning        config.ReasoningConfig   `json:"reasoning"`
+	WebUI            WebUIView                `json:"webui"`
+	Effective        EffectiveView            `json:"effective"`
+	Restart          []string                 `json:"restart_required_fields,omitempty"`
 }
 
 type EffectiveView struct {
@@ -147,20 +148,21 @@ type SecretInput struct {
 }
 
 type ConfigUpdate struct {
-	Listen      string                   `json:"listen"`
-	ServerKeys  []SecretInput            `json:"server_keys"`
-	ZenKeys     []SecretInput            `json:"zen_keys"`
-	GoKeys      []SecretInput            `json:"go_keys"`
-	Anonymous   bool                     `json:"anonymous"`
-	Proxies     []SecretInput            `json:"proxies"`
-	ProxyFile   string                   `json:"proxyfile"`
-	SourceIPv6  []string                 `json:"source_ipv6"`
-	Upstream    config.UpstreamConfig    `json:"upstream"`
-	Retry       config.RetryConfig       `json:"retry"`
-	Models      config.ModelsConfig      `json:"models"`
-	Performance config.PerformanceConfig `json:"performance"`
-	Logging     config.LoggingConfig     `json:"logging"`
-	Prefer      config.Tier              `json:"prefer"`
+	Listen           string                   `json:"listen"`
+	ServerKeys       []SecretInput            `json:"server_keys"`
+	ZenKeys          []SecretInput            `json:"zen_keys"`
+	GoKeys           []SecretInput            `json:"go_keys"`
+	Anonymous        bool                     `json:"anonymous"`
+	Proxies          []SecretInput            `json:"proxies"`
+	ProxyFile        string                   `json:"proxyfile"`
+	SourceIPv6       []string                 `json:"source_ipv6"`
+	SourceIPv6Prefix string                   `json:"source_ipv6_prefix"`
+	Upstream         config.UpstreamConfig    `json:"upstream"`
+	Retry            config.RetryConfig       `json:"retry"`
+	Models           config.ModelsConfig      `json:"models"`
+	Performance      config.PerformanceConfig `json:"performance"`
+	Logging          config.LoggingConfig     `json:"logging"`
+	Prefer           config.Tier              `json:"prefer"`
 	// A pointer distinguishes an omitted field (legacy clients should keep the
 	// current reasoning configuration) from an explicit empty object (clear it).
 	Reasoning *config.ReasoningConfig `json:"reasoning,omitempty"`
@@ -206,7 +208,7 @@ func (a *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	candidate := config.Config{
 		ServerKeyMetadata: current.ServerKeyMetadata,
 		Rotation:          current.Rotation,
-		Listen:            update.Listen, ServerKeys: serverKeys, ZenKeys: zenKeys, GoKeys: goKeys, Anonymous: update.Anonymous, Proxies: proxies, ProxyFile: update.ProxyFile, SourceIPv6: update.SourceIPv6,
+		Listen:            update.Listen, ServerKeys: serverKeys, ZenKeys: zenKeys, GoKeys: goKeys, Anonymous: update.Anonymous, Proxies: proxies, ProxyFile: update.ProxyFile, SourceIPv6: update.SourceIPv6, SourceIPv6Prefix: update.SourceIPv6Prefix,
 		Upstream: update.Upstream, Retry: update.Retry, Models: update.Models, Performance: update.Performance, Logging: update.Logging, Prefer: update.Prefer,
 		Reasoning: reasoning,
 		WebUI:     config.WebUIConfig{Enabled: update.WebUI.Enabled, Listen: update.WebUI.Listen, Username: current.WebUI.Username, PasswordHash: current.WebUI.PasswordHash, SessionTTLMinutes: update.WebUI.SessionTTLMinutes},
@@ -333,7 +335,7 @@ func (a *Server) configView() ConfigView {
 	effective, restart := a.manager.RestartStatus()
 	return ConfigView{
 		Listen: cfg.Listen, ServerKeys: maskSecrets(cfg.ServerKeys, false), ZenKeys: maskSecrets(cfg.ZenKeys, false), GoKeys: maskSecrets(cfg.GoKeys, false), Anonymous: cfg.Anonymous,
-		Proxies: maskSecrets(cfg.Proxies, true), ProxyFile: cfg.ProxyFile, SourceIPv6: cfg.SourceIPv6, Upstream: cfg.Upstream, Retry: cfg.Retry, Models: cfg.Models,
+		Proxies: maskSecrets(cfg.Proxies, true), ProxyFile: cfg.ProxyFile, SourceIPv6: cfg.SourceIPv6, SourceIPv6Prefix: cfg.SourceIPv6Prefix, Upstream: cfg.Upstream, Retry: cfg.Retry, Models: cfg.Models,
 		Performance: cfg.Performance, Logging: cfg.Logging, Prefer: cfg.Prefer, Reasoning: cfg.Reasoning,
 		WebUI:     WebUIView{Enabled: cfg.WebUI.Enabled, Listen: cfg.WebUI.Listen, Username: cfg.WebUI.Username, SessionTTLMinutes: cfg.WebUI.SessionTTLMinutes},
 		Effective: EffectiveView{Listen: effective.API, WebUIListen: effective.WebUI, WebUIEnabled: effective.WebUIEnabled},

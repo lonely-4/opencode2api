@@ -55,6 +55,7 @@ function fillConfig(value) {
   $("#c-anonymous").checked = !!value.anonymous;
   $("#c-proxyfile").value = value.proxyfile;
   $("#c-source-ipv6").value = (value.source_ipv6 || []).join("\n");
+  $("#c-source-prefix").value = value.source_ipv6_prefix || "";
   $("#c-up-zen").value = value.upstream.zen;
   $("#c-up-go").value = value.upstream.go;
   $("#c-attempts").value = value.retry.max_attempts;
@@ -97,6 +98,7 @@ async function save(event) {
         .value.split(/\r?\n/)
         .map((value) => value.trim())
         .filter(Boolean),
+      source_ipv6_prefix: $("#c-source-prefix").value.trim(),
       prefer: $("#c-prefer").value,
       upstream: { zen: $("#c-up-zen").value, go: $("#c-up-go").value },
       retry: { max_attempts: numberValue("#c-attempts"), timeout_seconds: numberValue("#c-timeout") },

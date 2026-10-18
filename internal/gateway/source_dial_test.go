@@ -47,6 +47,24 @@ func TestSourceDialRejectsIPv4(t *testing.T) {
 	}
 }
 
+func TestRandomInPrefixStaysInside(t *testing.T) {
+	_, prefix, err := net.ParseCIDR("2a11:6c7:3006:a500::/56")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]struct{}{}
+	for range 64 {
+		ip := randomInPrefix(prefix)
+		if !prefix.Contains(ip) {
+			t.Fatalf("%s is outside %s", ip, prefix)
+		}
+		seen[ip.String()] = struct{}{}
+	}
+	if len(seen) < 60 {
+		t.Fatalf("only %d distinct addresses in 64 draws", len(seen))
+	}
+}
+
 func TestProxyClientRotatesSources(t *testing.T) {
 	p := &proxyTransport{clients: []*http.Client{{}, {}, {}}}
 	seen := map[*http.Client]int{}

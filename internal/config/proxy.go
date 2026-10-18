@@ -149,6 +149,26 @@ func normalizeSourceIPv6(cfg *Config) error {
 	return nil
 }
 
+// normalizeSourceIPv6Prefix checks a routed prefix used as a random source pool.
+// Length is bounded so a typo cannot select the entire IPv6 internet or a single host.
+func normalizeSourceIPv6Prefix(cfg *Config) error {
+	raw := strings.TrimSpace(cfg.SourceIPv6Prefix)
+	if raw == "" {
+		cfg.SourceIPv6Prefix = ""
+		return nil
+	}
+	ip, network, err := net.ParseCIDR(raw)
+	if err != nil || ip.To4() != nil || network.IP.To4() != nil {
+		return fmt.Errorf("source_ipv6_prefix must be an IPv6 prefix, got %q", raw)
+	}
+	ones, bits := network.Mask.Size()
+	if bits != 128 || ones < 32 || ones > 120 {
+		return fmt.Errorf("source_ipv6_prefix length must be between 32 and 120")
+	}
+	cfg.SourceIPv6Prefix = network.String()
+	return nil
+}
+
 func trimList(items *[]string) {
 	out := (*items)[:0]
 	for _, item := range *items {

@@ -104,6 +104,30 @@ func TestNormalizeSourceIPv6(t *testing.T) {
 	}
 }
 
+func TestNormalizeSourceIPv6Prefix(t *testing.T) {
+	cfg := Config{
+		Listen: "127.0.0.1:8080", ServerKeys: []string{"local-key"}, Anonymous: true, Proxies: []string{"direct"},
+		SourceIPv6Prefix: "2a11:6c7:3006:a500::/56",
+		Upstream:         UpstreamConfig{Zen: "https://opencode.ai/zen", Go: "https://opencode.ai/zen/go", Anonymous: "https://opencode.ai/inference"},
+		Retry:            RetryConfig{MaxAttempts: 3, TimeoutSeconds: 300},
+		Models:           ModelsConfig{RefreshSeconds: 300, Protocols: map[string]string{}},
+		Performance:      PerformanceConfig{MaxIdleConns: 10, MaxIdleConnsPerHost: 10, IdleConnTimeoutSeconds: 30, ConnectTimeoutSeconds: 5, FailureCooldownSeconds: 15},
+		Logging:          LoggingConfig{Level: "info", RingSize: 100},
+		Prefer:           TierGo,
+	}
+	normalized, err := Normalize("config.json", cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if normalized.SourceIPv6Prefix != "2a11:6c7:3006:a500::/56" {
+		t.Fatalf("prefix = %q", normalized.SourceIPv6Prefix)
+	}
+	cfg.SourceIPv6Prefix = "2001:db8::1/128"
+	if _, err := Normalize("config.json", cfg); err == nil {
+		t.Fatal("accepted a /128 prefix")
+	}
+}
+
 func TestNormalizeAcceptsPoolProxy(t *testing.T) {
 	cfg := Config{
 		Listen:      "127.0.0.1:8080",

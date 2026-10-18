@@ -27,15 +27,18 @@ type Config struct {
 	ProxyFile         string                       `json:"proxyfile"`
 	// SourceIPv6 lists local IPv6 addresses. Each outbound request picks one
 	// at random and binds it as the source address. Empty keeps the kernel default.
-	SourceIPv6  []string          `json:"source_ipv6,omitempty"`
-	Upstream    UpstreamConfig    `json:"upstream"`
-	Retry       RetryConfig       `json:"retry"`
-	Models      ModelsConfig      `json:"models"`
-	Performance PerformanceConfig `json:"performance"`
-	Logging     LoggingConfig     `json:"logging"`
-	WebUI       WebUIConfig       `json:"webui"`
-	Prefer      Tier              `json:"prefer"`
-	Reasoning   ReasoningConfig   `json:"reasoning"`
+	SourceIPv6 []string `json:"source_ipv6,omitempty"`
+	// SourceIPv6Prefix is a routed prefix. Each new upstream connection binds
+	// a fresh random address inside it. Takes precedence over SourceIPv6.
+	SourceIPv6Prefix string            `json:"source_ipv6_prefix,omitempty"`
+	Upstream         UpstreamConfig    `json:"upstream"`
+	Retry            RetryConfig       `json:"retry"`
+	Models           ModelsConfig      `json:"models"`
+	Performance      PerformanceConfig `json:"performance"`
+	Logging          LoggingConfig     `json:"logging"`
+	WebUI            WebUIConfig       `json:"webui"`
+	Prefer           Tier              `json:"prefer"`
+	Reasoning        ReasoningConfig   `json:"reasoning"`
 
 	effectiveProxies []string
 }
@@ -174,6 +177,9 @@ func Normalize(path string, cfg Config) (Config, error) {
 		return Config{}, err
 	}
 	if err := normalizeSourceIPv6(&cfg); err != nil {
+		return Config{}, err
+	}
+	if err := normalizeSourceIPv6Prefix(&cfg); err != nil {
 		return Config{}, err
 	}
 	if cfg.Prefer != TierZen && cfg.Prefer != TierGo {

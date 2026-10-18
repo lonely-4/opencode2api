@@ -256,7 +256,15 @@ func (p *transportPool) healthCounts() (total, healthy int) {
 	return len(p.items), healthy
 }
 
-func newTransportPool(proxies []string, sources []string, cfg config.PerformanceConfig, responseHeaderTimeout time.Duration) (*transportPool, error) {
+func newTransportPool(proxies []string, sources []string, sourcePrefix string, cfg config.PerformanceConfig, responseHeaderTimeout time.Duration) (*transportPool, error) {
+	var prefix *net.IPNet
+	if strings.TrimSpace(sourcePrefix) != "" {
+		var err error
+		_, prefix, err = net.ParseCIDR(sourcePrefix)
+		if err != nil || prefix.IP.To4() != nil {
+			return nil, fmt.Errorf("invalid source ipv6 prefix %q", sourcePrefix)
+		}
+	}
 	sourceIPs, err := sourceIPs(sources)
 	if err != nil {
 		return nil, err
@@ -271,15 +279,23 @@ func newTransportPool(proxies []string, sources []string, cfg config.Performance
 				return nil, fmt.Errorf("parse proxy %s: %w", config.RedactURL(raw), err)
 			}
 		}
-		clients := make([]*http.Client, 0, max(len(sourceIPs), 1))
-		if len(sourceIPs) == 0 {
-			clients = append(clients, &http.Client{Transport: newUpstreamTransport(cfg, responseHeaderTimeout, isPool, nil, proxyURL)})
-		} else {
+		var clients []*http.Client
+		switch {
+		case prefix != nil:
+			// A fresh TCP connection per request, each bound to a new random
+			// address. HTTP/2 reuse would pin every follow-up to the first dial.
+			clients = []*http.Client{{Transport: newUpstreamTransport(cfg, responseHeaderTimeout, true, prefixDialContext(prefix, time.Duration(cfg.ConnectTimeoutSeconds)*time.Second), proxyURL)}}
+		case len(sourceIPs) == 0:
+			clients = []*http.Client{{Transport: newUpstreamTransport(cfg, responseHeaderTimeout, isPool, nil, proxyURL)}}
+		default:
+			clients = make([]*http.Client, 0, len(sourceIPs))
 			for _, ip := range sourceIPs {
-				clients = append(clients, &http.Client{Transport: newUpstreamTransport(cfg, responseHeaderTimeout, isPool, ip, proxyURL)})
+				clients = append(clients, &http.Client{Transport: newUpstreamTransport(cfg, responseHeaderTimeout, isPool, sourceDialContext(ip, time.Duration(cfg.ConnectTimeoutSeconds)*time.Second), proxyURL)})
 			}
 		}
-		proxy := &proxyTransport{index: len(p.items), name: raw, pool: isPool, clients: clients}
+		// A routed prefix is a rotating exit: one banned address must not cool
+		// down the whole pool, and each attempt has to be allowed to dial again.
+		proxy := &proxyTransport{index: len(p.items), name: raw, pool: isPool || prefix != nil, clients: clients}
 		proxy.healthy.Store(true)
 		p.items = append(p.items, proxy)
 	}
@@ -301,16 +317,16 @@ func sourceIPs(sources []string) ([]net.IP, error) {
 	return out, nil
 }
 
-func newUpstreamTransport(cfg config.PerformanceConfig, responseHeaderTimeout time.Duration, isPool bool, source net.IP, proxyURL *url.URL) *http.Transport {
+func newUpstreamTransport(cfg config.PerformanceConfig, responseHeaderTimeout time.Duration, fresh bool, dial func(ctx context.Context, network, addr string) (net.Conn, error), proxyURL *url.URL) *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConns = cfg.MaxIdleConns
 	transport.MaxIdleConnsPerHost = cfg.MaxIdleConnsPerHost
 	transport.MaxConnsPerHost = cfg.MaxConnsPerHost
 	transport.IdleConnTimeout = time.Duration(cfg.IdleConnTimeoutSeconds) * time.Second
 	transport.ResponseHeaderTimeout = responseHeaderTimeout
-	transport.ForceAttemptHTTP2 = !isPool
-	transport.DisableKeepAlives = isPool
-	if isPool {
+	transport.ForceAttemptHTTP2 = !fresh
+	transport.DisableKeepAlives = fresh
+	if fresh {
 		// Cloning DefaultTransport after its first dial inherits the
 		// already-configured HTTP/2 ALPN and TLSNextProto map, which ignores
 		// DisableKeepAlives and req.Close and multiplexes every request over
@@ -325,11 +341,13 @@ func newUpstreamTransport(cfg config.PerformanceConfig, responseHeaderTimeout ti
 			transport.TLSClientConfig = tlsCfg
 		}
 	}
-	timeout := time.Duration(cfg.ConnectTimeoutSeconds) * time.Second
-	if source == nil {
-		transport.DialContext = (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext
+	if dial == nil {
+		transport.DialContext = (&net.Dialer{
+			Timeout:   time.Duration(cfg.ConnectTimeoutSeconds) * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext
 	} else {
-		transport.DialContext = sourceDialContext(source, timeout)
+		transport.DialContext = dial
 	}
 	if proxyURL == nil {
 		transport.Proxy = nil
