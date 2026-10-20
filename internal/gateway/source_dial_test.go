@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"opencode2api/internal/config"
 )
 
 func TestSourceDialBindsLocalIPv6(t *testing.T) {
@@ -65,13 +67,29 @@ func TestRandomInPrefixStaysInside(t *testing.T) {
 	}
 }
 
-func TestProxyClientRotatesSources(t *testing.T) {
-	p := &proxyTransport{clients: []*http.Client{{}, {}, {}}}
-	seen := map[*http.Client]int{}
-	for range 300 {
-		seen[p.Client()]++
+func TestPrefixPoolDisablesReuse(t *testing.T) {
+	pool, err := transportPool([]string{"direct"}, nil, "2a11:6c7:3006:a500::/56", config.PerformanceConfig{
+		ConnectTimeoutSeconds:  5,
+		IdleConnTimeoutSeconds: 30,
+		MaxIdleConns:           8,
+		MaxIdleConnsPerHost:    2,
+		MaxConnsPerHost:        4,
+	}, time.Second)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(seen) != 3 {
-		t.Fatalf("random selection hit %d clients, want 3", len(seen))
+	if len(pool.items) != 1 {
+		t.Fatalf("items = %d", len(pool.items))
+	}
+	proxy := pool.items[0]
+	if !proxy.pool {
+		t.Fatal("a routed prefix must be a rotating pool so one failure does not cool every address")
+	}
+	if proxy.client == nil || proxy.bun == nil {
+		t.Fatal("prefix mode needs both the regular client and the bun client")
+	}
+	transport := proxy.client.Transport.(*http.Transport)
+	if !transport.DisableKeepAlives || transport.ForceAttemptHTTP2 {
+		t.Fatal("prefix mode must open a fresh HTTP/1.1 connection per request")
 	}
 }
