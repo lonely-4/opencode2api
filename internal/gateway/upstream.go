@@ -1766,6 +1766,11 @@ func anthropicSupportsStructuredOutput(model string) bool {
 	return strings.Contains(model, "claude-")
 }
 
+// projectIDDomain is the hash domain for derived project ids. Bumping it
+// moves every derived project onto a new upstream id without rotating the
+// server keys those ids are scoped to.
+const projectIDDomain = "opencode-project/v2\x00"
+
 // projectID renders the project header in the shape both lanes use: the
 // genuine git root commit hash or "global" is kept verbatim, and any other
 // project is hashed into the same 40-character lowercase hex shape. The value
@@ -1776,7 +1781,7 @@ func projectID(project string) string {
 	if project == "global" || gitCommitPattern.MatchString(project) {
 		return project
 	}
-	sum := sha256.Sum256([]byte("opencode-project\x00" + project))
+	sum := sha256.Sum256([]byte(projectIDDomain + project))
 	return hex.EncodeToString(sum[:20])
 }
 
