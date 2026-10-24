@@ -1620,10 +1620,6 @@ func v1ProviderUtils(protocol wire.Protocol) string {
 	}
 }
 
-// gitCommitPattern matches the git root commit hash OpenCode uses as its
-// project id on both lanes.
-var gitCommitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
-
 // v1AnthropicBetaRequest holds the Messages body fields the AI SDK
 // anthropic provider derives beta flags from. Fields whose JSON type varies
 // stay raw so one unexpected value cannot hide the others.
@@ -1766,19 +1762,17 @@ func anthropicSupportsStructuredOutput(model string) bool {
 	return strings.Contains(model, "claude-")
 }
 
-// projectIDDomain is the hash domain for derived project ids. Bumping it
-// moves every derived project onto a new upstream id without rotating the
-// server keys those ids are scoped to.
-const projectIDDomain = "opencode-project/v2\x00"
+// projectIDDomain is the hash domain for project ids sent upstream. Bumping
+// it moves every project onto a new id without rotating server keys.
+const projectIDDomain = "opencode-project/v3\x00"
 
-// projectID renders the project header in the shape both lanes use: the
-// genuine git root commit hash or "global" is kept verbatim, and any other
-// project is hashed into the same 40-character lowercase hex shape. The value
-// itself is not checked upstream, only its shape, but hashing keeps one
-// project mapped to one stable upstream project id and masks a caller's
-// prj_*-style project, which the v2 gate rejects.
+// projectID renders the project header in the 40-character hex shape both
+// lanes accept. The literal "global" stays verbatim. Every other value,
+// including a caller-supplied git commit, is hashed in projectIDDomain so a
+// domain bump changes the id OpenCode sees. The upstream checks the shape,
+// not the preimage, and rejects a prj_* project on the v2 lane.
 func projectID(project string) string {
-	if project == "global" || gitCommitPattern.MatchString(project) {
+	if project == "global" {
 		return project
 	}
 	sum := sha256.Sum256([]byte(projectIDDomain + project))
